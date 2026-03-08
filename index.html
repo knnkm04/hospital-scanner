@@ -10,9 +10,17 @@
 <body class="bg-light p-3">
     <div class="container text-center shadow-sm bg-white p-4 rounded-4">
         <h4 class="mb-4">📱 เครื่องสแกนพกพา (External)</h4>
-        
-        <input type="text" id="targetToken" class="form-control mb-3" placeholder="ระบุรหัสโต๊ะตรวจ (เช่น DR001)">
-        
+             <div class="mb-3">
+                <label class="form-label fw-bold">เลือกห้องตรวจที่จะส่งข้อมูล:</label>
+                <select id="token" class="form-select form-select-lg">
+                    <option value="Room01">ห้องตรวจ 1</option>
+                    <option value="Room02">ห้องตรวจ 2</option>
+                    <option value="Room03">ห้องตรวจ 3</option>
+                    <option value="Room04">ห้องตรวจ 4</option>
+                    <option value="Room05">ห้องตรวจ 5</option>
+                    <option value="Room06">ห้องตรวจ 6</option>
+                </select>
+            </div>
         <div id="reader" style="width: 100%; border-radius: 15px; overflow: hidden;"></div>
         
         <div id="statusText" class="mt-3 fw-bold text-primary">รอการสแกน...</div>
@@ -20,7 +28,7 @@
 
     <script>
         // *** วาง URL ที่ได้จาก Google Apps Script (Deployment ID) ตรงนี้ ***
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbznqWWzF4pVCmqX9MoPt9FS9GFjK6zD58KOqhexuUVc8sT1Wurukajc1npwmt2S33cl/exec";
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxxUm1HZrPJ90K1w-jhA4QF5gBx88oB9Gj1y-WgVEverRBNle4Sje1pJwagdfaF0DMP/exec";
 
         const html5QrCode = new Html5Qrcode("reader");
 
@@ -36,26 +44,50 @@
             document.getElementById('statusText').innerText = "❌ กล้องขัดข้อง: " + err;
         });
 
+        let isScanning = true; // ตัวแปรควบคุมสถานะการสแกน
+        
         function sendToGAS(hn) {
+            if (!isScanning) return; // ถ้าอยู่ในช่วงหยุดรอ ให้หยุดทำงานทันที
+            
             const token = document.getElementById('targetToken').value;
-            if (!token) { alert("กรุณาระบุรหัสโต๊ะ!"); return; }
+            if (!token) { alert("กรุณาระบุห้องตรวจ"); return; }
+            
+            // 1. สั่งหยุดการสแกนทันทีที่เจอ HN ครั้งแรก
+            isScanning = false;
             localStorage.setItem('lastToken', token);
-
-            document.getElementById('statusText').innerText = "⏳ กำลังส่งข้อมูล HN: " + hn;
-
-            // ใช้ Fetch API ส่งข้อมูลข้ามระบบไปยัง Google Apps Script
+        
+            document.getElementById('statusText').innerHTML = `
+                <div class="alert alert-warning">
+                    ⏳ กำลังส่งข้อมูล HN: <b>${hn}</b>...
+                </div>`;
+        
             fetch(GAS_URL, {
                 method: "POST",
-                mode: "no-cors", // จำเป็นต้องใช้ no-cors สำหรับ GAS
+                mode: "no-cors",
                 body: JSON.stringify({ token: token, hn: hn })
             })
             .then(() => {
-                document.getElementById('statusText').innerText = "✅ ส่งข้อมูลสำเร็จ: " + hn;
                 if (navigator.vibrate) navigator.vibrate(200);
+                
+                // 2. แสดงปุ่มให้กดเพื่อเริ่มสแกนใหม่
+                document.getElementById('statusText').innerHTML = `
+                    <div class="alert alert-success">
+                        ✅ ส่งข้อมูล <b>${hn}</b> สำเร็จ!
+                    </div>
+                    <button class="btn btn-primary btn-lg w-100 mt-2" onclick="resumeScan()">
+                        กดเพื่อสแกนคนต่อไป 📷
+                    </button>`;
             })
             .catch(err => {
                 document.getElementById('statusText').innerText = "❌ Error: " + err;
+                isScanning = true; // ถ้าส่งพลาด ให้ยอมให้สแกนใหม่ได้
             });
+        }
+        
+        // 3. ฟังก์ชันสำหรับเริ่มสแกนใหม่
+        function resumeScan() {
+            isScanning = true;
+            document.getElementById('statusText').innerHTML = '<div class="text-primary">🔍 กำลังรอสแกน QR Code...</div>';
         }
     </script>
 </body>
